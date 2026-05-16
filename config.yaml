@@ -1,0 +1,59 @@
+# ============================================================
+# Tradeform Configuration
+# ============================================================
+# Edit this file to match your broker, Ollama model, and
+# trading preferences. All sensitive data stays local.
+# ============================================================
+
+mt5:
+  # Your MT5 account credentials
+  login: 24645008            # Your MT5 account number (integer)
+  password: "slmi%H!0"        # Your MT5 account password
+  server: "VantageInternational-Demo"          # Broker server name (e.g., "ICMarkets-Demo")
+  path: ""            # Optional: path to terminal64.exe
+
+ollama:
+  host: "http://localhost:11434"
+  model: "qwen3.5:9b"           # Which Ollama model to use
+  temperature: 0.3            # Lower = more deterministic
+  analysis_interval_minutes: 5  # How often to auto-analyze
+
+trading:
+  symbols:
+    - "BTCUSD"
+    - "XAUUSD.sc"
+    - "EURUSD"
+    - "GBPUSD"
+    - "USDJPY"
+  timeframe: "M5"              # M1, M5, M15, M30, H1, H4, D1
+  mode: "auto"          # "auto" or "confirmation"
+
+risk:
+  max_risk_per_trade_pct: 1.0   # Max % of balance risked per trade
+  max_daily_drawdown_pct: 3.0   # Halt trading after this % daily loss
+  max_positions: 3              # Max simultaneous open positions
+  max_lot_size: 0.5             # Hard cap on lot size
+  default_sl_atr_multiplier: 1.5  # SL distance = ATR * this
+  default_tp_atr_multiplier: 2.5  # TP distance = ATR * this
+
+
+# Tradeform is built! Here's what was created and verified:
+
+# ✅ 18 files across 7 modules — all imports passing
+# Connection test results:
+
+# MT5: Connected — Account "Ajaay Expert Advisor", 1:2000 leverage
+# Ollama: Not running yet
+# To get started:
+# Start Ollama: ollama serve then ollama pull llama3.2 (or whichever model you have)
+# Edit config.yaml: Add your MT5 login/password/server if needed (it connected automatically using the running terminal, which is fine)
+# Test: python main.py --test
+# Launch: python main.py
+
+# Key features built:
+# 6-panel Textual dashboard (market prices, AI analyst, positions, risk, logs, account bar)
+# AI analysis using your local Ollama model with structured JSON signals (BUY/SELL/HOLD + SL/TP/confidence)
+# Full order execution (market buy/sell, modify SL/TP, close, close-all)
+# Risk management (position sizing by ATR, daily drawdown limit, kill switch)
+# Trade journal in SQLite
+# Two modes: confirmation (you approve trades) or auto (AI executes)
