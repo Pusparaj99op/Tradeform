@@ -1,0 +1,277 @@
+/* ============================================================
+   Tradeform Terminal UI — Textual CSS
+   Dark trading terminal theme
+   ============================================================ */
+
+/* ── Global ──────────────────────────────────────────────── */
+
+Screen {
+    background: #0a0e17;
+    color: #c8d6e5;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+
+#header-bar {
+    dock: top;
+    height: 3;
+    background: #0f1923;
+    color: #e2e8f0;
+    padding: 0 2;
+    border-bottom: solid #1a2744;
+}
+
+#header-bar .title {
+    color: #00d4aa;
+    text-style: bold;
+}
+
+#connection-status {
+    dock: right;
+    width: auto;
+    padding: 0 1;
+}
+
+/* ── Account Bar ─────────────────────────────────────────── */
+
+#account-bar {
+    dock: top;
+    height: 3;
+    background: #0d1520;
+    padding: 0 2;
+    border-bottom: solid #1a2744;
+}
+
+.account-item {
+    width: auto;
+    padding: 0 2;
+}
+
+.account-label {
+    color: #64748b;
+}
+
+.account-value {
+    text-style: bold;
+}
+
+.profit-positive {
+    color: #00d4aa;
+}
+
+.profit-negative {
+    color: #ff6b6b;
+}
+
+/* ── Main Layout ─────────────────────────────────────────── */
+
+#main-container {
+    layout: grid;
+    grid-size: 3 2;
+    grid-columns: 1fr 2fr 1fr;
+    grid-rows: 2fr 1fr;
+    grid-gutter: 1;
+    padding: 1;
+}
+
+/* ── Market Panel (Left) ─────────────────────────────────── */
+
+#market-panel {
+    background: #0d1520;
+    border: solid #1a2744;
+    padding: 1;
+}
+
+#market-panel .panel-title {
+    color: #00d4aa;
+    text-style: bold;
+    padding-bottom: 1;
+}
+
+.symbol-row {
+    height: 3;
+    padding: 0 1;
+}
+
+.symbol-name {
+    color: #e2e8f0;
+    text-style: bold;
+    width: 10;
+}
+
+.symbol-bid {
+    color: #00d4aa;
+    width: 12;
+}
+
+.symbol-ask {
+    color: #ff6b6b;
+    width: 12;
+}
+
+.symbol-spread {
+    color: #64748b;
+    width: 8;
+}
+
+/* ── AI Panel (Center) ───────────────────────────────────── */
+
+#ai-panel {
+    background: #0d1520;
+    border: solid #1a2744;
+    padding: 1;
+    row-span: 2;
+}
+
+#ai-panel .panel-title {
+    color: #a78bfa;
+    text-style: bold;
+    padding-bottom: 1;
+}
+
+#ai-output {
+    height: 1fr;
+    background: #080c14;
+    border: solid #1a2744;
+    padding: 1;
+    overflow-y: auto;
+}
+
+#ai-input {
+    dock: bottom;
+    height: 3;
+    margin-top: 1;
+}
+
+/* ── Trade Panel (Right) ─────────────────────────────────── */
+
+#trade-panel {
+    background: #0d1520;
+    border: solid #1a2744;
+    padding: 1;
+}
+
+#trade-panel .panel-title {
+    color: #fbbf24;
+    text-style: bold;
+    padding-bottom: 1;
+}
+
+/* ── Log Panel (Bottom Left) ─────────────────────────────── */
+
+#log-panel {
+    background: #0d1520;
+    border: solid #1a2744;
+    padding: 1;
+}
+
+#log-panel .panel-title {
+    color: #64748b;
+    text-style: bold;
+    padding-bottom: 1;
+}
+
+#log-output {
+    height: 1fr;
+    background: #080c14;
+    padding: 1;
+    overflow-y: auto;
+}
+
+/* ── Signal Card ─────────────────────────────────────────── */
+
+.signal-buy {
+    background: #064e3b;
+    border: solid #00d4aa;
+    padding: 1;
+    margin: 1 0;
+}
+
+.signal-sell {
+    background: #4c0519;
+    border: solid #ff6b6b;
+    padding: 1;
+    margin: 1 0;
+}
+
+.signal-hold {
+    background: #1e293b;
+    border: solid #64748b;
+    padding: 1;
+    margin: 1 0;
+}
+
+/* ── Risk Panel (Bottom Right) ───────────────────────────── */
+
+#risk-panel {
+    background: #0d1520;
+    border: solid #1a2744;
+    padding: 1;
+}
+
+#risk-panel .panel-title {
+    color: #f97316;
+    text-style: bold;
+    padding-bottom: 1;
+}
+
+/* ── DataTable styling ───────────────────────────────────── */
+
+DataTable {
+    height: 1fr;
+    background: #080c14;
+}
+
+DataTable > .datatable--header {
+    background: #1a2744;
+    color: #94a3b8;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #1e3a5f;
+    color: #e2e8f0;
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+
+#footer-bar {
+    dock: bottom;
+    height: 3;
+    background: #0f1923;
+    color: #64748b;
+    padding: 0 2;
+    border-top: solid #1a2744;
+}
+
+.key-hint {
+    color: #00d4aa;
+    text-style: bold;
+}
+
+/* ── Input ───────────────────────────────────────────────── */
+
+Input {
+    background: #0a0e17;
+    border: solid #1a2744;
+    color: #e2e8f0;
+    padding: 0 1;
+}
+
+Input:focus {
+    border: solid #00d4aa;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+
+Scrollbar {
+    background: #0d1520;
+}
+
+ScrollbarSlider {
+    background: #1a2744;
+}
+
+ScrollbarSlider:hover {
+    background: #2d4a7a;
+}
