@@ -1,0 +1,1 @@
+goal is to built a terminal based program that connects with my ollama local models and trade in forex market using meta trader 5 through fx broker
