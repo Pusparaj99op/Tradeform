@@ -1,6 +1,6 @@
 """
 Core trading engine — the orchestrator.
-Ties together MT5, Ollama, indicators, risk, and the event bus.
+Ties together MT5, Ollama, indicators, risk, order flow, and the event bus.
 """
 
 import time
@@ -15,6 +15,11 @@ from tradeform.mt5.trader import MT5Trader, TradeDirection, TradeResult
 from tradeform.ai.ollama_client import OllamaClient
 from tradeform.ai.analyst import AIAnalyst, TradeSignal
 from tradeform.indicators.technical import compute_all_indicators
+from tradeform.indicators.orderflow import (
+    get_dom_snapshot,
+    compute_order_flow,
+    compute_volume_profile,
+)
 from tradeform.risk.manager import RiskManager
 from tradeform.storage.logger import TradeLogger
 
@@ -134,7 +139,7 @@ class TradingEngine:
 
     def run_analysis(self, symbol: str) -> TradeSignal:
         """
-        Run AI analysis on a symbol.
+        Run AI analysis on a symbol with DOM, Volume Profile, and Order Flow.
         Returns the generated TradeSignal.
         """
         if not self.mt5_connected:
@@ -143,9 +148,9 @@ class TradingEngine:
             return TradeSignal(symbol=symbol, error="Ollama not connected")
 
         self.event_bus.emit_simple(EventType.ANALYSIS_STARTED, symbol=symbol)
-        self._log("INFO", "analyst", f"Analyzing {symbol}...")
+        self._log("INFO", "analyst", f"Analyzing {symbol} (DOM+OF+VP)...")
 
-        # Fetch data
+        # Fetch OHLCV data
         df = self.mt5_data.get_rates(
             symbol,
             self.config.trading.timeframe,
@@ -156,15 +161,51 @@ class TradingEngine:
             self._log("ERROR", "analyst", f"Not enough data for {symbol}")
             return signal
 
-        # Compute indicators
+        # Compute technical indicators
         indicators = compute_all_indicators(df)
+
+        # Fetch DOM (Depth of Market / Level 2)
+        try:
+            dom_data = get_dom_snapshot(symbol)
+            if dom_data.get("depth_levels", 0) > 0:
+                self._log("INFO", "dom", f"DOM: {dom_data['dominant_side']} (imbalance: {dom_data['imbalance']:+.2f})")
+            else:
+                self._log("WARN", "dom", "DOM data unavailable for this symbol")
+        except Exception as e:
+            self._log("WARN", "dom", f"DOM fetch error: {e}")
+            dom_data = {}
+
+        # Compute Order Flow (tick-by-tick delta)
+        try:
+            order_flow = compute_order_flow(symbol, seconds=300)  # Last 5 minutes
+            if order_flow.get("tick_count", 0) > 0:
+                self._log("INFO", "flow", f"Delta: {order_flow['delta']:+.0f} | {order_flow['aggressor']}")
+        except Exception as e:
+            self._log("WARN", "flow", f"Order flow error: {e}")
+            order_flow = {}
+
+        # Compute Volume Profile
+        try:
+            volume_profile = compute_volume_profile(
+                symbol,
+                timeframe_str=self.config.trading.timeframe,
+                bars=120,
+            )
+            if volume_profile.get("poc_price", 0) > 0:
+                self._log("INFO", "vprofile",
+                    f"POC: ${volume_profile['poc_price']:.2f} | "
+                    f"VAH: ${volume_profile['vah']:.2f} | VAL: ${volume_profile['val']:.2f} | "
+                    f"Position: {volume_profile['price_vs_value_area']}")
+        except Exception as e:
+            self._log("WARN", "vprofile", f"Volume profile error: {e}")
+            volume_profile = {}
 
         # Get account context
         account = self.get_account_summary()
         positions = self.get_positions()
         risk_summary = self.risk_manager.get_risk_summary(account["balance"], positions)
 
-        # Run AI analysis
+        # Run AI analysis with all data streams
         signal = self.analyst.analyze(
             symbol=symbol,
             timeframe=self.config.trading.timeframe,
@@ -172,6 +213,9 @@ class TradingEngine:
             account_info=account,
             positions=positions,
             daily_pnl=risk_summary["daily_pnl"],
+            dom_data=dom_data,
+            order_flow=order_flow,
+            volume_profile=volume_profile,
         )
 
         # Store result
@@ -328,6 +372,118 @@ class TradingEngine:
         results = self.mt5_trader.close_all()
         self._log("WARN", "engine", f"🛑 KILL SWITCH: Closed {len(results)} positions")
         self.event_bus.emit_simple(EventType.KILL_SWITCH, count=len(results))
+        return results
+
+    def manage_open_positions(self):
+        """
+        Actively manage open positions for gold scalping.
+        - Tight trailing stops using real ATR from market data
+        - Move to breakeven once price moves 1x ATR in favor
+        - Auto-close stale scalps sitting with small profit
+        """
+        if not self.mt5_connected:
+            return
+
+        positions = self.get_positions()
+
+        for pos in positions:
+            symbol = pos.get("symbol", "")
+            ticket = pos.get("ticket", 0)
+            profit = pos.get("profit", 0)
+            current_sl = pos.get("sl", 0)
+            entry_price = pos.get("price_open", 0)
+            pos_type = pos.get("type", 0)  # 0=BUY, 1=SELL
+            open_time = pos.get("time", 0)
+
+            # Get current price
+            tick = self.get_tick(symbol)
+            if not tick:
+                continue
+
+            current_price = tick.get("bid", 0) if pos_type == 0 else tick.get("ask", 0)
+
+            # Get symbol info
+            sym_info = self.mt5_data.get_symbol_info(symbol)
+            if not sym_info:
+                continue
+
+            digits = sym_info.get("digits", 2)
+            point = sym_info.get("point", 0.01)
+
+            # Calculate real ATR from recent M1 bars
+            try:
+                df = self.mt5_data.get_rates(symbol, self.config.trading.timeframe, count=20)
+                if df is not None and len(df) >= 14:
+                    from tradeform.indicators.technical import atr as calc_atr
+                    import numpy as np
+                    high = df["high"].values.astype(float)
+                    low = df["low"].values.astype(float)
+                    close = df["close"].values.astype(float)
+                    atr_values = calc_atr(high, low, close, 14)
+                    valid_atr = atr_values[~np.isnan(atr_values)]
+                    current_atr = float(valid_atr[-1]) if len(valid_atr) > 0 else 2.0  # Gold default ~$2
+                else:
+                    current_atr = 2.0  # Fallback for gold
+            except Exception:
+                current_atr = 2.0
+
+            # Trailing distance = 0.75x ATR (tighter for scalping)
+            trail_distance = current_atr * 0.75
+
+            # Price distance from entry
+            if pos_type == 0:  # BUY
+                price_in_favor = current_price - entry_price
+            else:  # SELL
+                price_in_favor = entry_price - current_price
+
+            # Move to breakeven when price moves 1x ATR in favor
+            if price_in_favor >= current_atr and entry_price > 0:
+                if pos_type == 0:  # BUY — SL should be at or above entry
+                    breakeven_sl = entry_price + (point * 10)  # +10 points above entry
+                    if current_sl < breakeven_sl:
+                        result = self.mt5_trader.modify_position(ticket, sl=round(breakeven_sl, digits))
+                        if result.success:
+                            self._log("INFO", "scalp", f"🔒 Breakeven #{ticket} {symbol} SL→{breakeven_sl:.{digits}f}")
+                        continue
+                else:  # SELL — SL should be at or below entry
+                    breakeven_sl = entry_price - (point * 10)
+                    if current_sl == 0 or current_sl > breakeven_sl:
+                        result = self.mt5_trader.modify_position(ticket, sl=round(breakeven_sl, digits))
+                        if result.success:
+                            self._log("INFO", "scalp", f"🔒 Breakeven #{ticket} {symbol} SL→{breakeven_sl:.{digits}f}")
+                        continue
+
+            # Trail stop on winning positions (only after breakeven)
+            if profit > 0 and price_in_favor > current_atr * 1.5:
+                if pos_type == 0:  # BUY
+                    new_sl = current_price - trail_distance
+                    if new_sl > current_sl and new_sl > entry_price:
+                        result = self.mt5_trader.modify_position(ticket, sl=round(new_sl, digits))
+                        if result.success:
+                            self._log("INFO", "scalp", f"📈 Trail #{ticket} {symbol} SL→{new_sl:.{digits}f} (+${profit:.2f})")
+                else:  # SELL
+                    new_sl = current_price + trail_distance
+                    if current_sl == 0 or (new_sl < current_sl and new_sl < entry_price):
+                        result = self.mt5_trader.modify_position(ticket, sl=round(new_sl, digits))
+                        if result.success:
+                            self._log("INFO", "scalp", f"📈 Trail #{ticket} {symbol} SL→{new_sl:.{digits}f} (+${profit:.2f})")
+
+    def close_symbol_positions(self, symbol: str, direction: str = None) -> List[TradeResult]:
+        """
+        Close all positions on a specific symbol.
+        Optionally filter by direction (BUY/SELL).
+        """
+        positions = self.get_positions()
+        results = []
+        for pos in positions:
+            if pos.get("symbol") != symbol:
+                continue
+            if direction:
+                pos_dir = "BUY" if pos.get("type") == 0 else "SELL"
+                if pos_dir != direction:
+                    continue
+            result = self.close_position(pos.get("ticket", 0))
+            results.append(result)
         return results
 
     # ── Chat ───────────────────────────────────────────────────
