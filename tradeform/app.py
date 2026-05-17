@@ -109,19 +109,27 @@ class TradeformApp(App):
         # Connect in background
         self.connect_services()
 
-        # Set up periodic refresh
-        self.set_interval(2.0, self._refresh_market_data)
-        self.set_interval(5.0, self._refresh_positions)
-        self.set_interval(10.0, self._refresh_risk)
-        self.set_interval(3.0, self._refresh_account)
+        # Set up periodic refresh — fast for scalping
+        self.set_interval(1.0, self._refresh_market_data)    # 1s price updates
+        self.set_interval(3.0, self._refresh_positions)       # 3s position updates
+        self.set_interval(5.0, self._refresh_risk)            # 5s risk check
+        self.set_interval(3.0, self._refresh_account)         # 3s account refresh
 
-        # Autonomous trading loop — runs every interval
+        # Autonomous scalping loop — runs every interval
         interval_secs = self.config.ollama.analysis_interval_minutes * 60
         self.set_interval(interval_secs, self._autonomous_loop)
+
+        # Scalp position management — trail stops every 15s
+        self.set_interval(15.0, self._manage_positions)
+
+        # Trigger first scalp analysis 8s after startup
+        self.set_timer(8.0, self._autonomous_loop)
+
         self._write_log(
-            f"[bold yellow]⚡ Auto-loop armed[/]: every "
-            f"{self.config.ollama.analysis_interval_minutes}m | "
-            f"Mode: [bold]{self.config.trading.mode}[/]"
+            f"[bold yellow]⚡ GOLD SCALPING MODE ACTIVE[/]: "
+            f"M1 analysis every {self.config.ollama.analysis_interval_minutes}m | "
+            f"Trailing stops every 15s | "
+            f"Symbol: XAUUSD.sc"
         )
 
     @work(thread=True, exclusive=True, group="connect")
@@ -485,6 +493,22 @@ class TradeformApp(App):
             except Exception as e:
                 ai_output.write(f"[bold red]Auto-analysis error ({symbol}): {e}[/]")
                 self._write_log(f"[red]Auto-loop error {symbol}: {e}[/]")
+
+    def _manage_positions(self) -> None:
+        """Periodic position management — trail stops on winners."""
+        if not self.engine.mt5_connected:
+            return
+        if self.engine.risk_manager.is_killed:
+            return
+        self._run_position_management()
+
+    @work(thread=True, exclusive=True, group="manage")
+    def _run_position_management(self) -> None:
+        """Run trailing stop management in background."""
+        try:
+            self.engine.manage_open_positions()
+        except Exception as e:
+            self._write_log(f"[red]Position management error: {e}[/]")
 
     def action_kill_switch(self) -> None:
         """Emergency close all positions."""
