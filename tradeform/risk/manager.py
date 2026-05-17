@@ -137,21 +137,22 @@ class RiskManager:
                 reason=f"⚠️ Volume {volume} exceeds max lot size ({self.config.max_lot_size}).",
             )
 
-        # Check margin (basic check — equity should be well above margin)
-        if equity < balance * 0.5:
+        # Check margin (basic check — equity should be above minimum)
+        if equity < balance * 0.2:
             return RiskCheck(
                 approved=False,
-                reason="⚠️ Equity is below 50% of balance. High margin usage.",
+                reason="⚠️ Equity is below 20% of balance. Critical margin usage.",
             )
 
-        # Check for duplicate direction on same symbol
+        # Allow multiple positions on same symbol for scaling into winners
+        # Only block opposing directions on the same symbol (hedging)
         for pos in open_positions:
             if pos.get("symbol") == symbol:
                 pos_type = "BUY" if pos.get("type") == 0 else "SELL"
-                if pos_type == direction:
+                if pos_type != direction:
                     return RiskCheck(
                         approved=False,
-                        reason=f"⚠️ Already have a {direction} position on {symbol}.",
+                        reason=f"⚠️ Already have a {pos_type} position on {symbol}. Close it first before going {direction}.",
                     )
 
         return RiskCheck(
