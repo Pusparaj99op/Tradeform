@@ -198,6 +198,7 @@ def compute_all_indicators(df: pd.DataFrame) -> Dict[str, Any]:
             "histogram": latest(histogram),
         },
         "atr_14": latest(atr_14),
+        "ema_9": latest(ema(close, 9)),   # Ultra-fast EMA for scalping
         "ema_20": latest(ema_20),
         "ema_50": latest(ema_50),
         "ema_200": latest(ema_200),
@@ -209,6 +210,10 @@ def compute_all_indicators(df: pd.DataFrame) -> Dict[str, Any]:
         "support_resistance": sr_levels,
         "volume_avg_20": round(float(np.mean(volume[-20:])), 0) if len(volume) >= 20 else None,
         "volume_current": float(volume[-1]),
+        # Scalping extras
+        "volume_spike": bool(volume[-1] > np.mean(volume[-20:]) * 1.5) if len(volume) >= 20 else False,
+        "momentum_5": round(float(close[-1] - close[-6]), 5) if len(close) > 5 else 0,
+        "candle_body_ratio": round(_candle_body_ratio(df), 4),
         "trend": _determine_trend(close, ema_20, ema_50),
         "last_5_candles": [
             {
@@ -250,3 +255,19 @@ def _determine_trend(
         return "BEARISH"
     else:
         return "NEUTRAL"
+
+
+def _candle_body_ratio(df: pd.DataFrame) -> float:
+    """
+    Ratio of body to total range for the latest candle.
+    Low ratio (< 0.3) = doji/indecision. High ratio (> 0.7) = strong directional candle.
+    Useful for gold scalping — strong candles confirm momentum.
+    """
+    if len(df) < 1:
+        return 0.5
+    last = df.iloc[-1]
+    total_range = float(last["high"] - last["low"])
+    if total_range <= 0:
+        return 0.5
+    body = abs(float(last["close"] - last["open"]))
+    return body / total_range
