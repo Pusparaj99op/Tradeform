@@ -65,18 +65,31 @@ class MT5Trader:
 
     @staticmethod
     def _get_filling_type(symbol: str) -> int:
-        """Determine the correct filling type for a symbol."""
-        info = mt5.symbol_info(symbol)
-        if info is None:
-            return mt5.ORDER_FILLING_IOC
+        """
+        Determine the correct order filling type for a symbol.
+        Uses raw bitmask integers to avoid missing constant attributes
+        in some MetaTrader5 Python library versions.
+          filling_mode bit 0 (value 1) = FOK supported
+          filling_mode bit 1 (value 2) = IOC supported
+        """
+        try:
+            info = mt5.symbol_info(symbol)
+            if info is None:
+                return mt5.ORDER_FILLING_IOC
 
-        filling = info.filling_mode
-        if filling & mt5.SYMBOL_FILLING_FOK:
-            return mt5.ORDER_FILLING_FOK
-        elif filling & mt5.SYMBOL_FILLING_IOC:
+            filling = int(info.filling_mode)
+
+            # Bit 0 = FOK (Fill or Kill)
+            if filling & 1:
+                return mt5.ORDER_FILLING_FOK
+            # Bit 1 = IOC (Immediate or Cancel)
+            elif filling & 2:
+                return mt5.ORDER_FILLING_IOC
+            else:
+                return mt5.ORDER_FILLING_RETURN
+        except Exception:
+            # Safe fallback — IOC works on most brokers
             return mt5.ORDER_FILLING_IOC
-        else:
-            return mt5.ORDER_FILLING_RETURN
 
     @staticmethod
     def open_position(
