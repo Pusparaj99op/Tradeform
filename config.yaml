@@ -15,26 +15,22 @@ mt5:
 ollama:
   host: "http://localhost:11434"
   model: "qwen3.5:9b"           # Which Ollama model to use
-  temperature: 0.3            # Lower = more deterministic
-  analysis_interval_minutes: 5  # How often to auto-analyze
+  temperature: 0.15           # Very low = razor-sharp scalping decisions
+  analysis_interval_minutes: 1  # 1-minute scalping cycles
 
 trading:
   symbols:
-    - "BTCUSD"
-    - "XAUUSD.sc"
-    - "EURUSD"
-    - "GBPUSD"
-    - "USDJPY"
-  timeframe: "M5"              # M1, M5, M15, M30, H1, H4, D1
-  mode: "auto"          # "auto" or "confirmation"
+    - "BTCUSD"               # GOLD only — pure scalping focus
+  timeframe: "M15"              # M1 for scalping
+  mode: "auto"          # "auto" = full autonomous execution
 
 risk:
-  max_risk_per_trade_pct: 1.0   # Max % of balance risked per trade
-  max_daily_drawdown_pct: 3.0   # Halt trading after this % daily loss
-  max_positions: 3              # Max simultaneous open positions
-  max_lot_size: 0.5             # Hard cap on lot size
-  default_sl_atr_multiplier: 1.5  # SL distance = ATR * this
-  default_tp_atr_multiplier: 2.5  # TP distance = ATR * this
+  max_risk_per_trade_pct: 1.5   # 1.5% per scalp — tight risk
+  max_daily_drawdown_pct: 5.0   # Halt after 5% daily loss
+  max_positions: 5              # Up to 5 gold scalps at once
+  max_lot_size: 1.0             # Gold has high pip value, cap at 1 lot
+  default_sl_atr_multiplier: 1.0  # Tight SL = 1x ATR for scalping
+  default_tp_atr_multiplier: 2.0  # TP = 2x ATR — quick 1:2 RR scalps
 
 
 # Tradeform is built! Here's what was created and verified:
